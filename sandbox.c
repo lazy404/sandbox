@@ -20,9 +20,9 @@ int setseccomp() {
      
      ctx = seccomp_init(SCMP_ACT_ALLOW);
 
-     // deny another prctl
-     // if((rc = seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(prctl), 0)) < 0)
-     //     goto out;
+     // only allow PR_SET_DUMPABLE reset
+     if((rc = seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(prctl), 1, SCMP_A0(SCMP_CMP_NE, PR_SET_DUMPABLE))) < 0)
+         goto out;
 
      // this is already blocked by setting PR_SET_DUMPABLE but block just in case
      if((rc = seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(process_vm_readv), 0)) < 0)
@@ -91,9 +91,14 @@ int main(int argc, char* argv[]) {
         perror("setrlimit failed");
 
     printf("getpid() = %d\n", getpid());
-    
+
     if(nodump)
         printf("prctl(PR_SET_DUMPABLE, 0) = %d\n", prctl(PR_SET_DUMPABLE, 0));
+
+    printf("prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) = %d\n", prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0));
+
+    system("sudo localhost");
+
 
     struct sigaction sa;
 
@@ -113,9 +118,9 @@ int main(int argc, char* argv[]) {
     }
 
 
-
     if(seccomp)
         printf("setseccomp() = %d\n", setseccomp());
+
 
     printf("socket(AF_UNIX, SOCK_STREAM, 0) = %d\n", socket(AF_UNIX, SOCK_STREAM, 0));
 
