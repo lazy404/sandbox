@@ -3,14 +3,16 @@
 #include <linux/prctl.h>
 #include <time.h>
 #include <stdlib.h>
-
-#include <seccomp.h> /* libseccomp */
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+
+#include <seccomp.h>
+
 
 int setseccomp() {
      scmp_filter_ctx ctx;
@@ -80,6 +82,13 @@ int main(int argc, char* argv[]) {
                 printf("Usage:\n%s -a reset PR_SET_DUMPABLE in signal handler -n set PR_SET_DUMPABLE, -r reset PR_SET_DUMPABLE -s seccomp -t try tcp socket\n", argv[0]);
                 exit(1);
         }
+
+    struct rlimit core_limit;
+    core_limit.rlim_cur = RLIM_INFINITY;
+    core_limit.rlim_max = RLIM_INFINITY;
+
+    if (setrlimit(RLIMIT_CORE, &core_limit) < 0)
+        perror("setrlimit failed");
 
     printf("getpid() = %d\n", getpid());
     
