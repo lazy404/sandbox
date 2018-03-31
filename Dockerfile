@@ -3,6 +3,9 @@ FROM amazonlinux
 RUN yum update && yum install -y gcc make strace psutils shadow-utils procps
 RUN yum install -y psmisc libseccomp libseccomp-devel
 WORKDIR /code
-#RUN make sandbox
+ADD . /code
+RUN make
 RUN adduser test
-ENTRYPOINT /code/init.sh
+USER test
+ENTRYPOINT ["/code/sandbox"]
+CMD [-ans]

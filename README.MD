@@ -1,6 +1,7 @@
-echo /tmp/core >  /proc/sys/kernel/core_pattern
-echo 2 > /proc/sys/fs/suid_dumpable
+To build `docker-compose up --build`
 
+### Happy patch:
+`docker-compose run --rm sandbox -ans`
 
-
-docker exec -u test -ti sandbox_sandbox_1 sh
+### Unhappy:
+`docker-compose run --rm sandbox -anst`

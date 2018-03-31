@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
 
 int setseccomp() {
      scmp_filter_ctx ctx;
@@ -17,23 +18,23 @@ int setseccomp() {
      
      ctx = seccomp_init(SCMP_ACT_ALLOW);
 
+     // deny another prctl
+     // if((rc = seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(prctl), 0)) < 0)
+     //     goto out;
 
-     if((rc = seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(prctl), 0)) < 0)
-         goto out;
-
-
+     // this is already blocked by setting PR_SET_DUMPABLE but block just in case
      if((rc = seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(process_vm_readv), 0)) < 0)
          goto out;
 
-
+     // this is already blocked by setting PR_SET_DUMPABLE but block just in case
      if((rc = seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(process_vm_writev), 0)) < 0)
          goto out;
 
-
+     // this is already blocked by setting PR_SET_DUMPABLE but block just in case
      if((rc = seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(ptrace), 0)) < 0)
          goto out;
 
-
+     // block all non local socket creation
      if((rc = seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(socket), 1, SCMP_A0(SCMP_CMP_NE, AF_LOCAL))) < 0)
          goto out;
 
@@ -45,12 +46,20 @@ out:
      return rc;
 }
 
+void handle_signal(int signal) {
+    printf("handle_signal(), got signal %d\n", signal);
+    
+    printf("resetting PR_SET_DUMPABLE, prctl(PR_SET_DUMPABLE, 1) = %d\n", prctl(PR_SET_DUMPABLE, 1));
+
+    abort();
+}
+
 int main(int argc, char* argv[]) {
     int* oops = NULL;
-    int nodump=0, redump=0, seccomp=0, tcp=0;
+    int nodump=0, redump=0, seccomp=0, tcp=0, set_signal=0;
     char c;
     
-    while((c = getopt(argc, argv, "nrst")) != -1)
+    while((c = getopt(argc, argv, "anrst")) != -1)
         switch(c) {
             case 'n':
                 nodump=1;
@@ -64,8 +73,11 @@ int main(int argc, char* argv[]) {
             case 's':
                 seccomp=1;
                 break;
+            case 'a':
+                set_signal=1;
+                break;
             default:
-                printf("Usage:\n%s -n set PR_SET_DUMPABLE, -r reset PR_SET_DUMPABLE -s seccomp -t try tcp socket\n", argv[0]);
+                printf("Usage:\n%s -a reset PR_SET_DUMPABLE in signal handler -n set PR_SET_DUMPABLE, -r reset PR_SET_DUMPABLE -s seccomp -t try tcp socket\n", argv[0]);
                 exit(1);
         }
 
@@ -73,6 +85,25 @@ int main(int argc, char* argv[]) {
     
     if(nodump)
         printf("prctl(PR_SET_DUMPABLE, 0) = %d\n", prctl(PR_SET_DUMPABLE, 0));
+
+    struct sigaction sa;
+
+    if(set_signal) {
+
+        sa.sa_handler = &handle_signal;
+
+        // Restart the system call, if at all possible
+        sa.sa_flags = SA_RESTART;
+
+        // Block every signal during the handler
+        sigfillset(&sa.sa_mask);
+
+        if (sigaction(SIGSEGV, &sa, NULL) == -1) {
+            perror("Error: cannot handle SIGSEGV");
+        }
+    }
+
+
 
     if(seccomp)
         printf("setseccomp() = %d\n", setseccomp());
@@ -85,7 +116,7 @@ int main(int argc, char* argv[]) {
     if(redump)
         printf("prctl(PR_SET_DUMPABLE, 1) = %d\n", prctl(PR_SET_DUMPABLE, 1));
 
-    printf("press enter for segfault\n");
+    printf("\npress enter for segfault\n");
 
     getchar();
     *oops=42;
