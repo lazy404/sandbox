@@ -7,5 +7,5 @@ ADD . /code
 RUN make
 RUN adduser test
 USER test
-ENTRYPOINT ["/code/sandbox"]
-CMD [-ans]
+ENTRYPOINT ["/code/init.sh"]
+CMD [-nsa]

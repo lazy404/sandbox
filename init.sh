@@ -2,5 +2,4 @@
 
 set -x
 
-
-sh
+/code/sandbox $@
